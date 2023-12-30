@@ -285,11 +285,32 @@ $ gdb executable_file PID
 
 ## GDB基本命令
 
+1. **`list`：**
+   - 显示源代码，通常与行号一起使用，如 `list 10` 显示第10行附近的源代码。
 
+2. **`break`：**
+   - 在指定的行设置断点，如 `break 15` 在第15行设置断点。
 
+3. **`information`：**
+   - 提供各种信息，如 `info breakpoints` 显示当前设置的所有断点。
 
+4. **`run`：**
+   - 启动程序并开始调试，如 `run arg1 arg2` 启动程序并传递参数 `arg1` 和 `arg2`。
 
----
+5. **`print`：**
+   - 打印变量的值，如 `print variable` 打印变量的值。
+
+6. **`watch`：**
+   - 监视变量的值，当变量的值发生变化时停下来，如 `watch variable`。
+
+7. **`next` 或 `step`：**
+   - 单步执行，`next` 用于逐过程执行，`step` 用于逐语句执行。
+
+8. **`continue`：**
+   - 继续执行程序直到遇到下一个断点或程序结束。
+
+9. **`quit`：**
+   - 退出 GDB。
 
 # Makefile
 
