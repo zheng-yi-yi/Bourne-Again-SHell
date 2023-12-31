@@ -50,7 +50,11 @@
   - [复制文件描述符](#复制文件描述符)
     - [1. `dup` 函数](#1-dup-函数)
     - [2. `dup2` 函数](#2-dup2-函数)
+  - [习题3](#习题3)
+  - [习题4](#习题4)
   - [Linux串口通信](#linux串口通信)
+    - [1. 概述](#1-概述)
+    - [2. 串口配置流程](#2-串口配置流程)
 
 
 # vi 或 vim
@@ -1054,6 +1058,208 @@ int main() {
 
 在这个例子中，`dup2` 函数将文件描述符复制到指定的新描述符上（这里是 100）。如果新描述符已经被使用，`dup2` 会先关闭新描述符，然后再进行复制。
 
+## 习题3
+
+阅读以下程序，请写出执行结果并解释得到该结果的原因：
+
+```c
+void main()
+{
+   int fd1,fd2;
+   fd1=open("/etc/passwd",O_RDONLY);
+   fd2=open("/etc/passwd ",O_RDWR);
+   printf("fd1=%d,fd2=%d\n",fd1,fd2);
+   close(fd1);
+   close(fd2);
+}
+```
+
+答：
+
+结果是`fd1=3 fd2=4`，这是因为函数`open()`函数返回的文件描述符为最小可用的非负整数，而`012`是三个标准的文件描述符，默认已经被占用，所以第一个`open()`的返回值为`3`，第二个`open()`返回的是`4`。
+
+## 习题4
+
+```c
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+
+int main(void) {
+   int fd, save_fd;
+   char msg[] = "This is a test\n";
+
+   // 打开文件 somefile，如果不存在则创建，以读写方式打开，权限为用户读写
+   fd = open("somefile", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+
+   if (fd == -1) {
+      perror("open");
+      exit(EXIT_FAILURE);
+   }
+
+   // 复制标准输出文件描述符（1），并保存原始标准输出文件描述符
+   save_fd = dup(1);
+
+   // 将文件描述符 fd 复制到标准输出文件描述符（1）
+   dup2(fd, 1);
+
+   // 关闭文件描述符 fd（因为 dup2 已经复制了 fd，可以关闭原始的了）
+   close(fd);
+
+   // 使用标准输出进行写入
+   write(1, msg, strlen(msg));
+
+   // 恢复原始标准输出文件描述符
+   dup2(save_fd, 1);
+
+   // 使用恢复后的标准输出进行写入
+   write(1, msg, strlen(msg));
+
+   // 关闭原始标准输出文件描述符
+   close(save_fd);
+
+   return 0;
+}
+```
+
 ## Linux串口通信
 
+### 1. 概述
 
+在Linux中，串口通信编程是通过串口（也称为COM口或RS-232）来实现数据交换的一种方式。串口通信通常用于连接计算机和外部设备，如传感器、打印机、调制解调器等。
+
+以下是Linux串口通信编程的一般步骤：
+
+1. **打开串口设备：** 你需要打开串口设备文件，通常是`/dev/ttyS0`（对应COM1）或`/dev/ttyUSB0`（对应USB串口适配器）。
+2. **配置串口参数：** 你需要设置串口的通信参数，如波特率、数据位、停止位和奇偶校验位。
+3. **读写数据：** 使用`read`和`write`函数进行数据的读取和发送。
+4. **关闭串口：** 在程序结束时，记得关闭串口。
+
+在`Linux`中，串口通信的配置主要通过 `termios` 结构体来完成，其中 `c_cflag` 字段也是非常重要的。`c_cflag` 包含了控制模式标志，这些标志通过“与”和“或”操作来进行设置和清除。
+
+### 2. 串口配置流程
+
+**1. 保存原先串口配置**
+
+在开始配置之前，使用 `tcgetattr` 函数保存当前串口配置，以便后续需要时能够还原。
+
+```c
+struct termios newtio, oldtio;
+tcgetattr(fd, &oldtio);
+```
+
+**2. 激活选项**
+
+激活选项包括 `CLOCAL` 和 `CREAD`，用于启用本地连接和允许数据接收。
+
+```c
+newtio.c_cflag |= CLOCAL | CREAD;
+```
+
+**3. 设置波特率**
+
+使用 `cfsetispeed` 和 `cfsetospeed` 函数设置波特率，确保输入和输出都采用相同的波特率。
+
+```c
+cfsetispeed(&newtio, B115200);
+cfsetospeed(&newtio, B115200);
+```
+
+**4. 设置数据位**
+
+通过位操作设置数据位，使用掩码操作确保不影响其他标志位。
+
+```c
+newtio.c_cflag &= ~CSIZE;  // 清除数据位掩码
+newtio.c_cflag |= CS8;     // 设置8位数据位标志
+```
+
+**5. 设置奇偶校验位**
+
+设置奇偶校验位需要同时操作 `c_cflag` 和 `c_iflag`。
+
+- 设置奇校验：
+
+  ```c
+  newtio.c_cflag |= PARENB;
+  newtio.c_cflag |= PARODD;
+  newtio.c_iflag |= (INPCK | ISTRIP);
+  ```
+
+- 设置偶校验：
+
+  ```c
+  newtio.c_iflag |= (INPCK | ISTRIP);
+  newtio.c_cflag |= PARENB;
+  newtio.c_cflag &= ~PARODD;
+  ```
+
+**6. 设置停止位**
+
+通过操纵 `CSTOPB` 标志设置停止位的数量。
+
+```c
+newtio.c_cflag &= ~CSTOPB; // 使用1位停止位
+```
+
+**7. 设置最少字符和等待时间**
+
+设置最少字符和等待时间，通常可设为0。
+
+```c
+newtio.c_cc[VTIME] = 0;
+newtio.c_cc[VMIN] = 0;
+```
+
+**8. 处理要写入的引用对象**
+
+在此步骤中，处理要通过串口写入的数据对象。
+
+**9. 刷清输入/输出缓存**
+
+使用 `tcflush` 函数刷新输入和输出缓冲区，确保旧数据不会影响新的配置。
+
+```c
+tcflush(fd, TCIOFLUSH);
+```
+
+`tcflush` 函数用于刷新输入和输出缓冲区，其原型如下：
+
+```c
+int tcflush(int filedes, int queue);
+```
+
+- `filedes`: 文件描述符，指定要刷新缓冲区的串口设备。
+- `queue`: 刷新的队列类型，可以是以下三个值之一：
+  - `TCIFLUSH`：刷清输入队列。即抛弃（丢弃）已经被终端驱动程序接收到，但用户程序尚未读取的输入数据。
+  - `TCOFLUSH`：刷清输出队列。即抛弃用户程序已经写入，但尚未被发送的输出数据。
+  - `TCIOFLUSH`：刷清输入、输出队列。即在刷清输入队列和输出队列时，还要抛弃所有在更改发生时未读取的输入数据。
+
+
+**10. 激活配置**
+
+在完成以上配置后，使用 `tcsetattr` 函数激活配置，确保新的设置立即生效。
+
+`tcsetattr` 函数用于设置终端设备的属性，并在何时激活新的属性取决于 `opt` 参数。其原型如下：
+
+```c
+int tcsetattr(int filedes, int opt, const struct termios *termptr);
+```
+
+- `filedes`: 文件描述符，指定要设置属性的串口设备。
+- `opt`: 指定何时激活新属性的选项，可以是以下三个值之一：
+  - `TCSANOW`：更改立即发生。即新的终端属性立即生效。
+  - `TCSADRAIN`：等到发送了所有输出后更改才发生。如果更改了输出参数，应该使用这个选项，以确保不会影响正在发送的数据。
+  - `TCSAFLUSH`：等到发送了所有输出后更改才发生。在更改发生时未读的所有输入数据都被删除。更进一步，它会抛弃未发送的输出数据。
+
+- `termptr`: 指向 `struct termios` 结构体的指针，包含新的终端属性。
+
+例如，要在配置串口后立即激活新的属性，可以使用如下代码：
+
+```c
+tcsetattr(fd, TCSANOW, &newtio);
+```
+
+这将立即激活新的串口属性，确保新的配置参数生效。
