@@ -47,6 +47,10 @@
     - [fwrite()](#fwrite)
     - [综合案例2](#综合案例2)
   - [文件描述符和文件指针的区别](#文件描述符和文件指针的区别)
+  - [复制文件描述符](#复制文件描述符)
+    - [1. `dup` 函数](#1-dup-函数)
+    - [2. `dup2` 函数](#2-dup2-函数)
+  - [Linux串口通信](#linux串口通信)
 
 
 # vi 或 vim
@@ -932,3 +936,124 @@ int main() {
 - 文件描述符: 在Linux内核中，任何打开的文件都会被分配一个唯一非负整数，用于表示该打开的文件，Linux内核式通过文件描述符对文件进行操作。
 - 文件指针: 在用户应用程序中，使用函数fopen打开一个文件后，将返回一个文件指针与该文件关联，所有对该文件的读写操作都可以通过该指针流完成。
 - 文件指针指向进程用户区中的一个被称为FILE结构的数据结构，FILD结构封装了一个缓冲区和一个文件描述符，使用户通过文件指针对文件操作成为可能。
+
+
+## 复制文件描述符
+
+`dup` 和 `dup2` 是用于复制文件描述符的系统调用。它们的目的是创建一个现有文件描述符的副本，以便在程序中使用这个副本进行文件操作。这对于重定向标准输入、标准输出和标准错误流以及在管道中使用文件描述符等场景非常有用。
+
+### 1. `dup` 函数
+
+`dup` 函数用于复制一个文件描述符，并返回一个新的文件描述符，该描述符与原始描述符指向相同的文件表项。其原型如下：
+
+```c
+#include <unistd.h>
+
+int dup(int oldfd);
+```
+
+- `oldfd`：要复制的文件描述符。
+
+`dup` 返回的新文件描述符是当前进程中尚未使用的最小文件描述符。如果复制成功，返回的新文件描述符将与 `oldfd` 共享相同的文件表项。
+
+示例代码：
+
+```c
+#include <fcntl.h>
+#include <stdio.h>
+#include <unistd.h>
+
+int main() {
+    int fd = open("example.txt", O_RDWR);
+
+    if (fd == -1) {
+        perror("open");
+        return 1;
+    }
+
+    int new_fd = dup(fd);
+
+    if (new_fd == -1) {
+        perror("dup");
+        close(fd);
+        return 1;
+    }
+
+    printf("Original file descriptor: %d\n", fd);
+    printf("Duplicated file descriptor: %d\n", new_fd);
+
+    // 使用 fd 和 new_fd 进行文件操作
+
+    close(fd);
+    close(new_fd);
+
+    return 0;
+}
+```
+
+运行效果：
+
+```bash
+book@100ask:~/clangLearn$ vim dup_test.c
+book@100ask:~/clangLearn$ gcc dup_test.c -o dup_test
+book@100ask:~/clangLearn$ ./dup_test 
+Original file descriptor: 3
+Duplicated file descriptor: 4
+```
+
+
+### 2. `dup2` 函数
+
+`dup2` 函数与 `dup` 类似，但它允许指定新的文件描述符号。如果新的文件描述符已经被使用，`dup2` 会先关闭该描述符，然后将旧的文件描述符复制到指定的新描述符上。其原型如下：
+
+```c
+#include <unistd.h>
+
+int dup2(int oldfd, int newfd);
+```
+
+- `oldfd`：要复制的文件描述符。
+- `newfd`：指定的新文件描述符。
+
+`dup2` 返回的文件描述符与 `oldfd` 共享相同的文件表项，但其描述符号是 `newfd`。
+
+示例代码：
+
+```c
+#include <fcntl.h>
+#include <stdio.h>
+#include <unistd.h>
+
+int main() {
+    int fd = open("example.txt", O_RDWR);
+
+    if (fd == -1) {
+        perror("open");
+        return 1;
+    }
+
+    int new_fd = dup2(fd, 100);  // 将文件描述符复制到指定的新描述符上
+
+    if (new_fd == -1) {
+        perror("dup2");
+        close(fd);
+        return 1;
+    }
+
+    printf("Original file descriptor: %d\n", fd);
+    printf("Duplicated file descriptor: %d\n", new_fd);
+
+    // 使用 fd 和 new_fd 进行文件操作
+
+    close(fd);
+    // 注意：这里不需要关闭 new_fd，因为 dup2 已经关闭了可能冲突的新文件描述符
+
+    return 0;
+}
+```
+
+在这个例子中，`dup2` 函数将文件描述符复制到指定的新描述符上（这里是 100）。如果新描述符已经被使用，`dup2` 会先关闭新描述符，然后再进行复制。
+
+## Linux串口通信
+
+
