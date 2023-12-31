@@ -37,8 +37,8 @@
     - [open() 打开](#open-打开)
     - [read() 读取](#read-读取)
     - [write() 写入](#write-写入)
-    - [lseek() 定位](#lseek-定位)
-    - [close() 关闭](#close-关闭)
+    - [close() 关闭文件描述符](#close-关闭文件描述符)
+    - [lseek() 定位文件偏移量](#lseek-定位文件偏移量)
   - [标准IO操作函数](#标准io操作函数)
     - [fopen()](#fopen)
     - [fclose()](#fclose)
@@ -618,9 +618,9 @@ rm -f $(TGT)
 `open()` 函数的原型如下：
 
 ```c
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
+#include <sys/types.h>  
+#include <sys/stat.h>   // 声明 mode_t
+#include <fcntl.h>      // 声明 flag 常量
 
 int open(const char *pathname, int flags);
 int open(const char *pathname, int flags, mode_t mode);
@@ -694,32 +694,82 @@ int main() {
 函数原型：
 
 ```c
+#include <unistd.h>  // 声明size_t
 
+ssize_t read(int fd, void *buf, size_t count);
 ```
+
+参数含义：
+
+- `fd`：文件描述符。
+- `buf`：指向存放读取数据的缓冲区的指针。
+- `count`：要读取的字节数。
+
+函数返回值：
+
+- 成功：返回读取的字节数（非负整数）。
+- 失败：返回 -1，并设置全局变量 `errno` 来指示错误的原因。
 
 ### write() 写入
 
 函数原型：
 
 ```c
+#include <unistd.h>  // 声明size_t
 
+ssize_t write(int fd, const void *buf, size_t count);
 ```
 
-### lseek() 定位
+参数含义：
+
+- `fd`：文件描述符。
+- `buf`：指向包含要写入的数据的缓冲区的指针。
+- `count`：要写入的字节数。
+
+函数返回值：
+
+- 成功：返回写入的字节数（非负整数）。
+- 失败：返回 -1，并设置全局变量 `errno` 来指示错误的原因。
+
+### close() 关闭文件描述符
 
 函数原型：
 
 ```c
+#include <unistd.h>
 
+int close(int fd);
 ```
 
-### close() 关闭
+参数含义：
+
+- `fd`：要关闭的文件描述符。
+
+函数返回值：
+
+- 成功：返回 0。
+- 失败：返回 -1，并设置全局变量 `errno` 来指示错误的原因。
+
+### lseek() 定位文件偏移量
 
 函数原型：
 
 ```c
+#include <unistd.h>
 
+off_t lseek(int fd, off_t offset, int whence);
 ```
+
+参数含义：
+
+- `fd`：文件描述符。
+- `offset`：要移动的偏移量，可以是正数、负数或零。
+- `whence`：指定偏移量的起始位置，可以取以下值：
+  - `SEEK_SET`：从文件开头开始计算偏移。
+  - `SEEK_CUR`：从当前文件偏移量开始计算偏移。
+  - `SEEK_END`：从文件末尾开始计算偏移。
+
+`lseek()` 用于在文件中定位偏移量，通常与 `read()` 和 `write()` 一起使用。`lseek()` 可以将文件偏移量设置到文件的开头、当前位置或末尾，取决于 `whence` 参数的值。如果成功，`lseek()` 返回新的文件偏移量；如果失败，返回 -1，并设置全局变量 `errno` 来指示错误的原因。
 
 
 ## 标准IO操作函数
