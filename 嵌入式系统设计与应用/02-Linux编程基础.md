@@ -29,6 +29,22 @@
   - [Makefile规则](#makefile规则)
     - [隐式规则](#隐式规则)
     - [模式规则](#模式规则)
+    - [习题1](#习题1)
+    - [习题2](#习题2)
+- [文件IO编程](#文件io编程)
+  - [文件描述符](#文件描述符)
+  - [基本IO操作函数](#基本io操作函数)
+    - [open() 打开](#open-打开)
+    - [read() 读取](#read-读取)
+    - [write() 写入](#write-写入)
+    - [lseek() 定位](#lseek-定位)
+    - [close() 关闭](#close-关闭)
+  - [标准IO操作函数](#标准io操作函数)
+    - [fopen()](#fopen)
+    - [fclose()](#fclose)
+    - [fread()](#fread)
+    - [fwrite()](#fwrite)
+  - [文件描述符和文件指针的区别](#文件描述符和文件指针的区别)
 
 
 # vi 或 vim
@@ -509,3 +525,203 @@ clean:
 ```
 
 在这个Makefile中，`%.o: %.c` 表示任何`.o`文件都可以由对应的`.c`文件生成。`$<` 是一个自动变量，表示规则中的第一个依赖项，即`.c`文件。`$@` 是一个自动变量，表示规则中的目标，即`.o`文件。通过这个规则，Make工具会自动根据需要编译`file1.c`和`file2.c`，生成对应的`.o`文件，然后使用目标规则生成最终的可执行文件`my_program`。
+
+### 习题1
+
+编写了三个C语言源文件`main.C`、`port.c`和`port.h`，其中`main.c`为主函数，并对`port.c`进行了引用。请写一个`Makefile`文件，执行`make`命令时生成可执行文件`myapp`，执行`make clean`命令是删除目标文件和可执行文件。
+
+方式一：
+
+```makefile
+# makefile
+
+myapp:main.o port.o
+   gcc main.o port.o -o myapp
+main.o:main.c port.h
+   gcc -c main.c -o main.o
+port.o:port.c prot.h
+   gcc -c port.c -o port.o
+
+clean:
+   rm -f main.o port.o myapp
+```
+
+方式二：
+
+```makefile
+# makefile
+
+myapp:main.o port.o
+   gcc $^ -o $@
+main.o:main.c port.h
+   gcc -c $< -o $@
+port.o:port.c prot.h
+   gcc -c $< -o $@
+
+clean:
+   rm *.o myapp
+```
+
+### 习题2
+
+阅读以下`Makeflie`文件
+
+```makefile
+# makefile
+all:libmys.so
+SRC=f1.c f2.c f3.c
+TGT=$(SRC:.c=.o)
+%.o:%.c
+   gcc -c $?
+libmys.so:$(TGT)
+   gcc -shared -0 $@ $(TGT)
+clean:
+rm -f $(TGT)
+```
+
+请回答下列问题:
+
+1. 此 `Makefile` 文件的主要功能是什么?
+
+答：生成共享库文件 `libmys.so`
+
+1. 此 `Makefile` 文件包含多少个规则? 它们分别是什么?
+
+答：4个，分别是 `all`、`%.o`、`libmys.so`、`clean`
+
+3. 使用此 `Makefile` 文件可以生成目标文件 `f2.o` 吗? 为什么?
+  
+答：可以。因为模式规则 `%.o:%.c` 定义了 `*.o` 与 `*.c` 的关系和生成方式。
+
+# 文件IO编程
+
+## 文件描述符
+
+在Linux系统中，文件描述符（File Descriptor）是用于标识和访问已打开文件或I/O通道的一种机制。对于Linux来说，所有对设备和文件的操作都使用文件描述符来实现。文件描述符是一个非负整数，是一个索引值，并指向内核中每个进程打开文件的记录表。每个进程都会有一个文件描述符表，它是一个数组，其中每个元素都是一个文件描述符。
+
+标准文件描述符是指在程序启动时由操作系统自动打开的文件描述符。有三个，分别是：
+
+- 0：`STDIN_FILENO`，标准输入文件描述符，通常关联于键盘输入。
+- 1：`STDOUT_FILENO`，标准输出文件描述符，通常关联于屏幕输出。
+- 2：`STDERR_FILENO`，标准错误文件描述符，通常关联于屏幕输出。
+
+这些标准文件描述符是在程序执行时自动打开的，并且它们在整个程序的生命周期内都可用。当程序启动时，它们已经被关联到相应的输入、输出和错误流。程序可以通过这些文件描述符来进行读取、写入和错误报告等操作。
+
+## 基本IO操作函数
+
+基本IO操作函数的特点是**不带缓存**，通过文件描述符来完成各种IO操作，**直接对文件或设备进行读写操作**。
+
+### open() 打开
+
+`open()` 函数是一个用于打开或创建文件的系统调用函数。
+
+`open()` 函数的原型如下：
+
+```c
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+
+int open(const char *pathname, int flags);
+int open(const char *pathname, int flags, mode_t mode);
+```
+
+参数含义：
+
+- `pathname` ：字符串，表示打开的文件名称，可以包含路径。
+- `flags` ：是打开文件的标志（可包含多个），用于指定打开文件的方式，如只读、只写、读写等。
+- `mode` ：参数只有在创建文件时才会用到，它指定了文件的权限，可以使用八进制数来表示权限。
+
+`open()` 函数返回一个文件描述符，该文件描述符是一个非负整数，用于后续对文件的读写操作。如果打开或创建文件失败，`open()` 返回 -1，并设置全局变量 `errno` 来指示错误的原因。
+
+以下是一些常见的 `flags` 可选值：
+
+- `O_RDONLY`：只读打开。
+- `O_WRONLY`：只写打开。
+- `O_RDWR`：读写打开。
+- `O_CREAT`：如果文件不存在，则创建文件。
+- `O_TRUNC`：如果文件存在，将其截断为零长度。
+- `O_APPEND`：追加写入文件。
+
+以下是一个简单的例子，演示了如何使用 `open()` 函数：
+
+```c
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+int main() {
+    int fd;
+
+    // 打开（或创建）文件 example.txt，如果不存在则创建，以读写方式打开
+    fd = open("example.txt", O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+    
+    if (fd == -1) {
+        perror("open");
+        exit(EXIT_FAILURE);
+    }
+
+    // 使用文件描述符进行读写操作，例如 write(fd, ...) 或 read(fd, ...)
+
+    // 关闭文件描述符
+    close(fd);
+
+    return 0;
+}
+```
+
+在这个例子中，`open()` 打开（或创建）了一个名为 `example.txt` 的文件，并返回一个文件描述符，之后可以使用该文件描述符进行读写操作。在结束后，通过 `close()` 函数关闭文件描述符。
+### read() 读取
+
+函数原型：
+
+```c
+
+```
+
+### write() 写入
+
+函数原型：
+
+```c
+
+```
+
+### lseek() 定位
+
+函数原型：
+
+```c
+
+```
+
+### close() 关闭
+
+函数原型：
+
+```c
+
+```
+
+
+## 标准IO操作函数
+
+标准IO操作函数的特点在于有**全缓冲**、**行缓冲**和**不带缓冲**三种形式，尽可能减少使用`read()`和`write()`等系统调用的数量。
+
+### fopen()
+
+### fclose()
+
+### fread()
+
+### fwrite()
+
+
+## 文件描述符和文件指针的区别
+
+`Linux`系统的文件描述符和文件指针的区别如下：
+
+- 文件描述符: 在Linux内核中，任何打开的文件都会被分配一个唯一非负整数，用于表示该打开的文件，Linux内核式通过文件描述符对文件进行操作。
+- 文件指针: 在用户应用程序中，使用函数fopen打开一个文件后，将返回一个文件指针与该文件关联，所有对该文件的读写操作都可以通过该指针流完成。
+- 文件指针指向进程用户区中的一个被称为FILE结构的数据结构，FILD结构封装了一个缓冲区和一个文件描述符，使用户通过文件指针对文件操作成为可能。
