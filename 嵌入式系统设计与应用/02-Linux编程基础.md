@@ -752,6 +752,7 @@ off_t lseek(int fd, off_t offset, int whence);
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
 
 int main() {
     int fd;
@@ -917,6 +918,12 @@ int main() {
     return 0;
 }
 ```
+
+运行效果：
+
+![image-20231231135317803](images/02-Linux编程基础/image-20231231135317803.png)
+
+
 
 ## 文件描述符和文件指针的区别
 
