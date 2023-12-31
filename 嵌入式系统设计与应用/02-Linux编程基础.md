@@ -39,11 +39,13 @@
     - [write() 写入](#write-写入)
     - [close() 关闭文件描述符](#close-关闭文件描述符)
     - [lseek() 定位文件偏移量](#lseek-定位文件偏移量)
+    - [综合案例](#综合案例)
   - [标准IO操作函数](#标准io操作函数)
     - [fopen()](#fopen)
     - [fclose()](#fclose)
     - [fread()](#fread)
     - [fwrite()](#fwrite)
+    - [综合案例2](#综合案例2)
   - [文件描述符和文件指针的区别](#文件描述符和文件指针的区别)
 
 
@@ -659,36 +661,6 @@ int open(const char *pathname, int flags, mode_t mode);
 
 这些宏定义可以与按位或（`|`）操作符结合使用，以创建一个表示完整文件权限的数字。例如，`S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH` 表示文件所有者具有读写权限，文件所属组和其他用户具有只读权限。
 
-下面是一个简单的例子：
-
-```c
-#include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-
-int main() {
-    int fd;
-
-    // 创建文件 example.txt，如果不存在则创建，以读写方式打开，权限为：用户读写，组只读
-    fd = open("example.txt", O_CREAT | O_RDWR, S_IRUSR | S_IWUSR | S_IRGRP);
-
-    if (fd == -1) {
-        perror("open");
-        exit(EXIT_FAILURE);
-    }
-
-    // 使用文件描述符进行读写操作，例如 write(fd, ...) 或 read(fd, ...)
-
-    // 关闭文件描述符
-    close(fd);
-
-    return 0;
-}
-```
-
-在这个例子中，`open()` 函数创建（或打开）一个名为 `example.txt` 的文件，以读写方式打开，并设置文件的权限为用户读写，组只读。
-
 ### read() 读取
 
 函数原型：
@@ -771,6 +743,65 @@ off_t lseek(int fd, off_t offset, int whence);
 
 `lseek()` 用于在文件中定位偏移量，通常与 `read()` 和 `write()` 一起使用。`lseek()` 可以将文件偏移量设置到文件的开头、当前位置或末尾，取决于 `whence` 参数的值。如果成功，`lseek()` 返回新的文件偏移量；如果失败，返回 -1，并设置全局变量 `errno` 来指示错误的原因。
 
+### 综合案例
+
+下面是一个简单的例子，演示了如何使用基本的IO操作函数进行文件的创建、写入、读取和关闭：
+
+```c
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+int main() {
+    int fd;
+
+    // 创建文件 example.txt，如果不存在则创建，以读写方式打开，权限为：用户读写，组只读
+    fd = open("example.txt", O_CREAT | O_RDWR, S_IRUSR | S_IWUSR | S_IRGRP);
+
+    if (fd == -1) {
+        perror("open");
+        exit(EXIT_FAILURE);
+    }
+
+    // 写入数据到文件
+    const char *data = "Hello, World!\n";
+    ssize_t write_result = write(fd, data, strlen(data));
+
+    if (write_result == -1) {
+        perror("write");
+        close(fd);
+        exit(EXIT_FAILURE);
+    }
+
+    // 定位文件偏移量到文件开头
+    off_t seek_result = lseek(fd, 0, SEEK_SET);
+
+    if (seek_result == -1) {
+        perror("lseek");
+        close(fd);
+        exit(EXIT_FAILURE);
+    }
+
+    // 读取文件数据
+    char buffer[100];
+    ssize_t read_result = read(fd, buffer, sizeof(buffer));
+
+    if (read_result == -1) {
+        perror("read");
+        close(fd);
+        exit(EXIT_FAILURE);
+    }
+
+    // 打印读取的数据
+    printf("Read from file: %s", buffer);
+
+    // 关闭文件描述符
+    close(fd);
+
+    return 0;
+}
+```
 
 ## 标准IO操作函数
 
@@ -814,6 +845,7 @@ int fclose(FILE *fp);
 - `fp`：要关闭的文件指针。
 
 ### fread()
+
 `fread()`函数用于从文件中读取数据。它的原型如下：
 
 ```c
@@ -826,6 +858,7 @@ size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream);
 - `stream`：文件指针。
 
 ### fwrite()
+
 `fwrite()`函数用于向文件中写入数据。它的原型如下：
 
 ```c
@@ -836,6 +869,50 @@ size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream);
 - `size`：每个数据项的字节数。
 - `nmemb`：要写入的数据项数目。
 - `stream`：文件指针。
+
+### 综合案例2
+
+下面是一个使用标准IO操作函数的简单案例，用于创建一个文本文件，写入数据，然后再读取并输出文件内容：
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+int main() {
+    FILE *file;
+    char data[] = "Hello, Standard IO!";
+
+    // 打开文件以写入数据，如果文件不存在则创建
+    file = fopen("example.txt", "w");
+    if (file == NULL) {
+        perror("Error opening file");
+        exit(EXIT_FAILURE);
+    }
+
+    // 写入数据到文件
+    fwrite(data, sizeof(char), sizeof(data), file);
+
+    // 关闭文件
+    fclose(file);
+
+    // 重新打开文件以读取数据
+    file = fopen("example.txt", "r");
+    if (file == NULL) {
+        perror("Error opening file");
+        exit(EXIT_FAILURE);
+    }
+
+    // 读取并输出文件内容
+    char buffer[100];
+    fread(buffer, sizeof(char), sizeof(buffer), file);
+    printf("File content: %s\n", buffer);
+
+    // 关闭文件
+    fclose(file);
+
+    return 0;
+}
+```
 
 ## 文件描述符和文件指针的区别
 
