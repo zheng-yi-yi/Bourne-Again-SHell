@@ -26,7 +26,9 @@
   - [Makefile变量](#makefile变量)
     - [简单使用](#简单使用)
     - [变量类型](#变量类型)
-  - [模式规则](#模式规则)
+  - [Makefile规则](#makefile规则)
+    - [隐式规则](#隐式规则)
+    - [模式规则](#模式规则)
 
 
 # vi 或 vim
@@ -422,7 +424,7 @@ clean:
 # Makefile
 objects= main.o add.o dec.o mul.o div.o
 CC=gcc
-CFLAGS=-Wall -g
+CFLAGS=-Wall -O -g
 # $^: 所有不重复的依赖文件
 # $@: 目标文件的完整名称
 program: $(objects)
@@ -441,10 +443,69 @@ clean:
    rm *.o program
 ```
 
-## 模式规则
+## Makefile规则
 
-什么是模式规则。
+Makefile规则是Make进行处理的一句，包括了目标体、依赖文件及其之间的命令语句。
 
-% 
+比如 `$(CC) $(CFLAGS) -c main.c -o main.o` 就是一条规则。
 
-模式规则可以提高编写Makefile文件的效率，无需手动输入若干条编译条件，类似对号入座进行匹配。
+### 隐式规则
+
+Make 会自动搜索隐式规则目录来确定如何生成目标文件，用于自动推导生成目标文件（`.o`）的规则，而不需要显式地写出每个源文件的编译规则。
+
+常见的隐式规则：
+
+| 对应语言后缀名                     | 隐式规则                            |
+| ---------------------------------- | ----------------------------------- |
+| **C编译**：`.c` 变为 `.o`          | `$(CC)-c $(CPPCFLAGS) $(CFLAGS)`    |
+| **C++编译**：`.cc` 或`.C`变为 `.o` | `$(CXX)-c $(CPPCFLAGS) $(CXXFLAGS)` |
+
+好，根据这个隐式规则，我们再把上述Makefile文件简化：
+
+```makefile
+# Makefile
+objects= main.o add.o dec.o mul.o div.o
+CC=gcc
+CFLAGS=-Wall -O -g
+program: $(objects)
+   $(CC) $^ -o $@
+clean:
+   rm *.o program
+```
+
+之所以可以这么简洁，是因为隐式规则指出，所有“.o”文件都可以自动由“.c”文件使用命令 `$(CC) $(CPPCFLAGS) $(CFLAGS) -c file.c -o file.o` 来生成。
+
+### 模式规则
+
+模式规则使用 `%` 符号表示通配符，可以用来匹配一类文件名或目标。在上述隐式规则中，`%.o: %.c` 表示任何 `.o` 文件都可以由对应的 `.c` 文件生成，无需为每一对文件编写具体的规则。
+
+举个例子，假设你有两个源文件 `file1.c` 和 `file2.c`，你可以使用模式规则 `%.o: %.c` 来为它们生成对应的目标文件。这个规则告诉Make工具如何将`.c`文件编译成`.o`文件，而不需要为每一对文件都编写具体的规则。
+
+假设目录结构如下：
+
+```bash
+project/
+|-- Makefile
+|-- file1.c
+|-- file2.c
+```
+
+下面是一个简单的Makefile示例：
+
+```Makefile
+# Makefile
+
+# 模式规则：任何 .o 文件都可以由对应的 .c 文件生成
+%.o: %.c
+    gcc -c $< -o $@
+
+# 目标规则：生成可执行文件 my_program
+my_program: file1.o file2.o
+    gcc $^ -o $@
+
+# 伪目标规则：清理生成的文件
+clean:
+    rm -f *.o my_program
+```
+
+在这个Makefile中，`%.o: %.c` 表示任何`.o`文件都可以由对应的`.c`文件生成。`$<` 是一个自动变量，表示规则中的第一个依赖项，即`.c`文件。`$@` 是一个自动变量，表示规则中的目标，即`.o`文件。通过这个规则，Make工具会自动根据需要编译`file1.c`和`file2.c`，生成对应的`.o`文件，然后使用目标规则生成最终的可执行文件`my_program`。
