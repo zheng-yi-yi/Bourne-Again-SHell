@@ -81,6 +81,19 @@
   - [习题8](#习题8)
 - [进程间的通信](#进程间的通信)
   - [1. 概述](#1-概述-1)
+  - [2. 管道通信](#2-管道通信)
+    - [(1) 管道](#1-管道)
+      - [管道的特点](#管道的特点)
+      - [管道的创建](#管道的创建)
+      - [管道的关闭](#管道的关闭)
+      - [管道的读写操作](#管道的读写操作)
+      - [管道的例子](#管道的例子)
+    - [(2) 标准流管道](#2-标准流管道)
+    - [()](#)
+    - [()](#-1)
+    - [()](#-2)
+  - [3. 共享内存通信](#3-共享内存通信)
+  - [4. 其他方式通信](#4-其他方式通信)
 
 
 # vi 或 vim
@@ -1724,3 +1737,213 @@ void main()
 
 7. **套接口（Socket）：** 更为一般的进程间通信机制，可用于不同机器之间的进程间通信。在网络上主机之间进程进行通信的方式。
 
+## 2. 管道通信
+
+管道，提供进程之间单向的通信方法。
+
+### (1) 管道
+
+#### 管道的特点
+
+1. **半双工性质：** 管道是半双工的，意味着数据只能在一个方向上流动。当两个进程之间需要双向通信时，需要建立两个管道，一个用于从父进程向子进程传递数据，另一个用于从子进程向父进程传递数据。
+
+2. **适用范围：** 管道通常用于具有亲缘关系的进程，例如父子进程或兄弟进程。这是因为管道是在创建进程时由父进程创建的，且在父进程和子进程之间共享。
+
+3. **独立文件系统：** 管道在操作系统中被视为一个独立的文件系统。虽然它对于进程而言就像一个文件，但它并不属于任何实际的文件系统，而是在内存中自立门户。管道的存在是临时的，通常随着进程的终止而被销毁。
+
+4. **读写操作：** 对于管道两端的进程而言，管道就是一个文件。因此，可以使用类似于普通文件的读取（read）和写入（write）等系统调用来进行数据的读写操作。然而，管道并不是普通文件，它存在于内存中，数据的读出和写入是通过管道缓冲区来实现的。
+
+5. **数据流动方式：** 进程向管道中写入的内容会被管道的另一端的进程读取。写入的内容每次都被添加在管道缓冲区的末尾，而读取则从缓冲区的头部开始。这确保了数据的有序读写，先写入的数据先被读取。
+
+#### 管道的创建
+
+在`C`语言中，可以使用`pipe()`函数来创建管道。该函数的原型如下：
+
+```c
+#include <unistd.h>
+
+int pipe(int filedes[2]);
+```
+
+`pipe()`函数创建一个无名管道，并通过`filedes`参数返回两个文件描述符，`filedes[0]`用于读取数据，`filedes[1]`用于写入数据。这两个文件描述符分别对应管道的读端和写端。
+
+```c
+#include <stdio.h>
+#include <unistd.h>
+
+int main() {
+    int fd[2];
+
+    // 创建管道
+    if (pipe(fd) == -1) {
+        perror("Pipe creation failed");
+        return 1;
+    }
+
+    // fd[0]为读端，fd[1]为写端
+    printf("管道创建成功，读端文件描述符：%d，写端文件描述符：%d\n", fd[0], fd[1]);
+
+    return 0;
+}
+```
+
+#### 管道的关闭
+
+使用`close()`函数来关闭管道的文件描述符，保证在不再需要使用管道时释放资源。关闭一个管道的读端或写端后，相应的文件描述符不再可用。
+
+#### 管道的读写操作
+
+管道的读写操作使用文件IO函数，主要涉及到`read()`和`write()`函数。
+
+- **读操作**的函数原型：
+
+```c
+#include <unistd.h>
+
+// 从管道中读取数据
+ssize_t read(int fd, void *buf, size_t count);
+```
+
+- **写操作**的函数原型：
+
+```c
+#include <unistd.h>
+
+// 向管道中写入数据
+ssize_t write(int fd, const void *buf, size_t count);
+```
+
+#### 管道的例子
+
+```c
+#include <unistd.h>
+#include <sys/types.h>
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+
+int main() {
+   int fd[2];              // 文件描述符数组，fd[0]用于读，fd[1]用于写
+   char buffer[50];        // 用于存储读取的数据
+
+   if (pipe(fd) == -1) {   // 创建管道
+      perror("Pipe creation failed");
+      exit(EXIT_FAILURE);
+   }
+
+   pid_t pid = fork();     // 创建子进程
+
+   if (pid == -1) {
+      perror("Fork failed");
+      exit(EXIT_FAILURE);
+   }
+
+   if (pid > 0) { // 父进程
+      close(fd[0]); // 关闭读端，父进程用于写
+
+      // 写入数据到管道
+      write(fd[1], "Hello, child process!", 22);
+
+      close(fd[1]);  // 关闭写端
+   } else { // 子进程
+      close(fd[1]); // 关闭写端，子进程用于读
+
+      // 从管道读取数据
+      read(fd[0], buffer, sizeof(buffer));
+
+      // 打印读取的数据
+      printf("Child process received: %s\n", buffer);
+
+      close(fd[0]);  // 关闭读端
+   }
+
+   return 0;
+}
+```
+
+效果：
+
+![image-20240101143624466](images/02-Linux编程基础/image-20240101143624466.png)
+
+### (2) 标准流管道
+
+如果觉得管道创建过于繁琐，可以使用`popen()`。
+
+`popen()`函数提供了一种简化管道创建和进程执行的方式，它通过内部调用`pipe()`函数来创建管道，然后启动一个shell来执行指定的命令。
+
+`popen()`的原型如下：
+
+```c
+#include <stdio.h>
+
+FILE *popen(const char *command, const char *type);
+```
+
+`command`参数是要执行的命令，`type`参数是数据流的方向，可以是 "r"（读取）或 "w"（写入）。`popen()`会返回一个文件指针，该指针可用于读取或写入与子进程之间的标准输入或输出。
+
+使用`popen()`时，必须使用`pclose()`函数来关闭文件流，并等待子进程结束。
+
+```c
+#include <stdio.h>
+
+int pclose(FILE *stream);
+```
+
+下面是一个简单的例子，演示了使用`popen()`执行`shell`命令并读取其输出：
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#define MAXSTRS 5
+
+int main() 
+{
+    int cntr;
+    char *strings[MAXSTRS] = {"echo", "bravo", "alpha", "charlie", "delta"};
+    char buffer[256];
+    FILE *pipe_fp;
+
+    // 打开管道，执行sort命令
+    pipe_fp = popen("sort", "w");
+
+    if (pipe_fp == NULL)
+    {
+        perror("popen");
+        exit(1);
+    }
+
+    // 向管道写入数据
+    for (cntr = 0; cntr < MAXSTRS; cntr++)
+    {
+        fputs(strings[cntr], pipe_fp);
+        fputc('\n', pipe_fp);
+    }
+
+    // 关闭管道
+    pclose(pipe_fp);
+
+    return 0;
+}
+```
+
+效果：
+
+![image-20240101144732830](images/02-Linux编程基础/image-20240101144732830.png)
+
+这个例子使用了 `popen()` 打开了一个管道，执行了 `sort` 命令，然后通过循环将字符串写入管道。最后使用 `pclose()` 关闭了管道。
+
+> 这段代码实际上模拟了在命令行中执行 "echo", "bravo", "alpha", "charlie", "delta" | sort 的效果，将这些字符串传递给 `sort` 命令进行排序。
+
+### ()
+### ()
+### ()
+
+
+
+
+
+## 3. 共享内存通信
+
+## 4. 其他方式通信
