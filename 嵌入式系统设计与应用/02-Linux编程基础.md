@@ -1402,7 +1402,7 @@ Child process - PID: 6697, n: 3
 > ### 记忆：exec 函数族的查找方式
 > 
 > #### 1. execl, execv, execle, execve
-> - 这四个函数的查找方式都需要**提供完整的文件目录路径**。
+> - 这四个函数（不以p结尾）的查找方式都需要**提供完整的文件目录路径**。
 > - 可以是相对路径或者绝对路径。
 > - 要执行的程序在调用进程的文件系统中的确切位置必须被指定。
 >
@@ -1412,21 +1412,24 @@ Child process - PID: 6697, n: 3
 >
 > ### 记忆：exec 函数族的参数传递方式
 >
-> #### 1. execl, execle
-> - 使用 "l" 表示参数以列表（list）的形式逐个列举。
-> - 语法：`int execl(const char *path, const char *arg, ...);`
-> - 参数 `arg` 是可变参数列表，用于列举传递给新程序的参数。
+> 参数传递方式只看函数名的第五个字母
 >
-> #### 2. execv, execve
-> - 使用 "v" 表示参数以矢量（vector）的方式整体构造指针数组传递。
-> - 语法：`int execv(const char *path, char *const argv[]);`
+> #### 1. execl, execle, execlp
+> - 第五个字母使用 "l" 的函数表示参数以列表（list）的形式逐个列举。
+> - 举例：`int execl(const char *path, const char *arg, ...);`
+> - 参数 `arg` 是可变参数列表，用于列举传递给新程序的参数。
+> - “...”中的最后一个可变参数应该是NULL，起标记作用。
+>
+> #### 2. execv, execve, execvp
+> - 第五个字母使用 "v" 的函数表示参数以矢量（vector）的方式整体构造指针数组传递。
+> - 举例：`int execv(const char *path, char *const argv[]);`
 > - 参数 `argv` 是一个指针数组，包含新程序执行时的参数。
 >
 > ### 记忆：环境变量
 >
 > #### execle, execve
-> - 以 "e" 结尾的这两个函数允许传入指定的环境变量。
-> - 通过参数 `envp` 指定新程序执行时使用的环境变量数组。
+> - 以 "e" 结尾的函数允许传入指定的环境变量。
+> - 即通过参数 `envp` 指定新程序执行时使用的环境变量数组。
 
 ### ()
 ### ()
