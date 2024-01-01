@@ -75,6 +75,7 @@
       - [僵尸进程（Zombie Process）](#僵尸进程zombie-process)
       - [守护进程（Daemon Process）](#守护进程daemon-process)
   - [习题5](#习题5)
+  - [习题6](#习题6)
 
 
 # vi 或 vim
@@ -1551,4 +1552,69 @@ pid_t waitpid(pid_t pid, int *status, int options);
 
 
 ## 习题5
+
+阅读以下程序，请回答下列问题:
+
+```c
+int main() 
+{
+   int count = 0;
+   pid_t pid;
+   if((pid=fork())<0) perror("fork error");
+   else if(pid==0) count++;
+   else wait(NULL);
+   printf("process forked is %d, count=%d \n", getpid(), count);
+}
+```
+
+1. 说明函数`wait(NULL)`和`fork()`的功能。在程序中，函数`wait(NULL)`可以用什么函数来替代?
+
+答：
+
+- `wait(NULL)`函数的功能是阻塞父进程，一直到子进程执行结束，然后收集子进程的相关信息，最终销毁子进程并返回。
+- `fork()`函数的功能是通过复制父进程的方式创建一个子进程，若调用失败则返回-1，否则在父进程中返回子进程号，在子进程中返回0。
+
+函数`wait(NULL)`可以用`waitpid(pid, NULL, 0)`函数来替代。
+
+2. 程序运行共产生多少个进程?假设系统中没有其他进程运行，假设父进程号为`1000.`分析并说明程序运行会有怎样的输出?
+
+答：
+
+共 2 个进程。
+
+程序输出如下：
+
+```bash
+process forked is 1001, count=1
+process forked is 1000, count=0
+```
+
+在子进程中，`fork()`函数的返回值才为`0`，所以只有子进程才会通过分支判断条件，执行`count++`语句;子进程和父进程各自操作自己的数据空间，子进程对变量所做的改变并不影响父进程中该变量的值。父进程亲由于执行`wait()`语句而被阻塞，等待子进程执行结束后才被唤醒，所以父进程的输出语句会最后执行。
+
+## 习题6
+
+
+给出如下`C`程序，在`linux下`使用`gcc`编译，已知从这个程序执行到这个程序的所有进程结束这个时间段内，没有其它新进程执行。
+
+1. 请说出执行这个程序后，将一共运行几个进程。
+2. 如果其中一个进程的输出结果是`pid1=1001,pid2=1002`，不考虑进程执行的顺序，请写出其他进程的输出结果。
+
+```c
+int main()
+{
+   pid_t pid1;
+   pid_t pid2;
+   pid1 = fork();
+   pid2 = fork();
+   printf("pid1=%d,pid2=%dn", pid1, pid2);
+}
+```
+
+答：
+
+- 一共执行了四个进程。
+- 另外几个进程的输出分别为:
+  - `pid1=1001,pid2=0`
+  - `pid1=0,pid2=1003`
+  - `pid1=0,pid2=0`
 
