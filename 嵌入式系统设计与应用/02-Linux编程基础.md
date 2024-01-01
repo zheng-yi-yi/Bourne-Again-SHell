@@ -76,6 +76,8 @@
       - [守护进程（Daemon Process）](#守护进程daemon-process)
   - [习题5](#习题5)
   - [习题6](#习题6)
+  - [习题7](#习题7)
+  - [习题8](#习题8)
 
 
 # vi 或 vim
@@ -1630,3 +1632,58 @@ int main()
 > 2. 在子进程中，第二次`fork`也会创建一个新的子进程，返回0，并且在子进程中`pid1`的值为0，`pid2`的值为第二次`fork`的返回值。
 > 3. 实际上可以这么理解，这个`C`程序中使用了两次`fork`，在每次`fork`调用后，进程会分裂成两个进程。
 >
+
+## 习题7
+
+阅读下面程序，请回答下列问题。
+
+1. 该程序运行时会产生几个进程?
+2. 输出“A:my pid is...”和输出“B:my pid is...”的进程的亲缘关系如何，为什么?
+
+```c
+void main()
+{
+   pid_t pid1;
+   pid_t pid2;
+   pid1 = fork();
+   pid2 = fork();
+   if (pid1==0 && pid2>0) printf("A:my pid is:%d\n",getpid());
+   if (pid1>0 && pid2==0) printf("B:my pid is:%d\n",getpid());
+}
+```
+
+答：
+
+- `4`个进程。
+- 兄弟关系。
+  - 原因: 
+    1. 执行`fork()`函数，父进程内返回的是子进程的进程号，而被创建出的子进程空间中返回值是`0`。
+    2. 第一次`fork()`后，第1个子进程的空间中的`pid1==0`，继续执行第`2`次`fork()`，若得到的`pid2>0`，说明仍是第1个子进程在运行。所以输出`A: ...`的是第`1`个儿子。
+    1. 同理，`pid1>0`是在祖先进程里，祖先进程继续执行得到`pid2==0`，说明是祖先的第`2`个儿子。
+    2. 所以这两个进程是兄弟关系。
+
+
+## 习题8
+
+阅读以下程序，若`execlp`调用成功的话，`"child process !"`会打印输出吗?为什么?
+
+```c
+void main() 
+{
+   pid_t pid;
+   if((pid = fork() < 0)) perror("fork error");
+   if(pid == 0) {
+      execlp("ps", "ps", "-ef", NULL);
+      print("child process!\n");
+   }
+   else {
+      waitpid(pid, NULL, 0);
+      printf("ps is done. goodbye\n");
+   }
+}
+```
+
+答：
+
+不会输出`"child process !"`。原因: 执行`execlp("ps","ps""-ef",NULL)`调用成功后，当前进程的地址空间被新的程序`ps`所替代，将执行`ps -ef`。
+
