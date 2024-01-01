@@ -1371,6 +1371,62 @@ Child process - PID: 6697, n: 3
 
 ### (2) exec 函数族
 
+`exec` 函数族提供了一个在进程中启动另一个程序执行的函数。当调用 `exec` 函数时，当前进程的用户空间代码和数据会被新程序完全替换，新程序的启动例程从头开始执行。
+
+总体上，exec 函数族包括六种不同的函数，它们是：
+
+以下是 exec 函数族的函数原型定义，以表格形式返回：
+
+| 函数   | 函数原型                                                                  |
+| ------ | ------------------------------------------------------------------------- |
+| execl  | `int execl(const char *path, const char *arg, ...);`                      |
+| execv  | `int execv(const char *path, char *const argv[]);`                        |
+| execle | `int execle(const char *path, const char *arg, ..., char *const envp[]);` |
+| execve | `int execve(const char *path, char *const argv[], char *const envp[]);`   |
+| execlp | `int execlp(const char *file, const char *arg, ...);`                     |
+| execvp | `int execvp(const char *file, char *const argv[]);`                       |
+
+这些函数的参数意义如下：
+- `path`：要执行的程序的绝对路径和相对路径（execl，execv，execle，execve）。
+- `file`：要执行的程序的文件名，会在环境变量 `$PATH` 指定的路径中查找（execlp，execvp）。
+- `arg`：参数列表，以逐个列举或数组形式传递给新程序。
+- `argv`：参数数组，用于整体构造指针数组传递给新程序。
+- `envp`：环境变量数组，用于指定新程序执行时使用的环境变量。
+
+
+这些函数在使用时需要谨慎，因为一旦调用成功，当前进程的代码和数据将被完全替换，不再返回。如果调用出错，这些函数将返回 -1。
+
+事实上，只有`execve`是真正的系统调用，其他五个最终都调用`execve`函数。
+
+
+> ### 记忆：exec 函数族的查找方式
+> 
+> #### 1. execl, execv, execle, execve
+> - 这四个函数的查找方式都需要**提供完整的文件目录路径**。
+> - 可以是相对路径或者绝对路径。
+> - 要执行的程序在调用进程的文件系统中的确切位置必须被指定。
+>
+> #### 2. execlp, execvp
+> - 这两个以 "p" 结尾的函数允许只提供文件名，而不是完整的文件目录路径。
+> - 系统会自动从环境变量 "PATH" 指定的路径中查找可执行文件。
+>
+> ### 记忆：exec 函数族的参数传递方式
+>
+> #### 1. execl, execle
+> - 使用 "l" 表示参数以列表（list）的形式逐个列举。
+> - 语法：`int execl(const char *path, const char *arg, ...);`
+> - 参数 `arg` 是可变参数列表，用于列举传递给新程序的参数。
+>
+> #### 2. execv, execve
+> - 使用 "v" 表示参数以矢量（vector）的方式整体构造指针数组传递。
+> - 语法：`int execv(const char *path, char *const argv[]);`
+> - 参数 `argv` 是一个指针数组，包含新程序执行时的参数。
+>
+> ### 记忆：环境变量
+>
+> #### execle, execve
+> - 以 "e" 结尾的这两个函数允许传入指定的环境变量。
+> - 通过参数 `envp` 指定新程序执行时使用的环境变量数组。
 
 ### ()
 ### ()
