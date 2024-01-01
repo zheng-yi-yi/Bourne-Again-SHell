@@ -89,9 +89,13 @@
       - [管道的读写操作](#管道的读写操作)
       - [管道的例子](#管道的例子)
     - [(2) 标准流管道](#2-标准流管道)
-    - [()](#)
-    - [()](#-1)
-    - [()](#-2)
+    - [(3) 有名管道](#3-有名管道)
+      - [有名管道的特点](#有名管道的特点)
+      - [FIFO的创建](#fifo的创建)
+    - [(4) 共享内存通信](#4-共享内存通信)
+      - [shmget()](#shmget)
+      - [shmat()](#shmat)
+      - [shmdt()](#shmdt)
   - [3. 共享内存通信](#3-共享内存通信)
   - [4. 其他方式通信](#4-其他方式通信)
 
@@ -1936,12 +1940,328 @@ int main()
 
 > 这段代码实际上模拟了在命令行中执行 "echo", "bravo", "alpha", "charlie", "delta" | sort 的效果，将这些字符串传递给 `sort` 命令进行排序。
 
-### ()
-### ()
-### ()
+### (3) 有名管道
+
+#### 有名管道的特点
+
+为了让管道成为一般的，通用的进程间通信模型，有名管道的出现成为了必然。
+
+有名管道（FIFO）是一种在文件系统中创建的特殊文件，可以通过文件名在不同进程间实现通信。FIFO 文件的先入先出原则使得数据传递更加有序，符合通信的预期。
+
+相对于无名管道，有名管道的主要特点包括：
+
+- FIFO管道不是临时对象，而是持久的，在文件系统中作为一个特殊的设备文件而存在的实体，通过`mkfifo`命令来创建。
+- 不同祖先的进程之间可以通过有名管道进行数据共享。
+- 当共享管道的进程执行完所有IO操作后，有名管道将继续保存在文件系统中，以便以后使用。
+
+#### FIFO的创建
+
+以下是两种创建FIFO的方法：
+
+1. **使用`mkfifo`命令：**
+   ```bash
+   mkfifo a=rw MYFIFO
+   ```
+2. **使用`mknod`命令：**
+   ```bash
+   mknod MYFIFO p
+   ```
+
+在以上两种方法中，使用 `ls -l` 命令查看创建的文件时，你可以看到文件名后面有一个 `p` 表示这是一个FIFO文件。FIFO文件的权限和普通文件一样，可以通过 `chmod` 命令来更改。
+
+下面介绍 `mkfifo` 函数。
+
+`mkfifo` 函数用于在文件系统中创建一个 `FIFO` 文件（有名管道）。函数原型如下：
+
+```c
+#include <sys/types.h>
+#include <sys/stat.h>
+
+int mkfifo(const char *pathname, mode_t mode);
+```
+
+- **pathname：** 指定要创建的 FIFO 文件的路径和名称。
+- **mode：** 指定 FIFO 文件的读写权限，通常使用八进制表示。可以通过按位或运算符 `|` 组合多个权限。比如 `S_IRUSR | S_IWUSR` 表示用户可读可写。
+
+- **返回值：** 若成功则返回 0，失败返回 -1。
+
+以下是一个简单的例子，演示如何使用 `mkfifo` 函数创建一个 FIFO 文件，并使用有名管道（FIFO）进行进程间通信。
+
+这个例子包括两个程序，一个用于写入数据到管道，另一个用于从管道读取数据。
+
+- **写入数据到管道的程序 (`writer.c`)**：
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <string.h>
+
+int main() {
+   const char *fifo_path = "myfifo";
+
+   // 创建 FIFO 文件
+   if (mkfifo(fifo_path, 0666) == -1) {
+      perror("mkfifo");
+      exit(EXIT_FAILURE);
+   }
+
+   printf("FIFO file \"%s\" created successfully.\n", fifo_path);
+
+   // 打开 FIFO 文件的写端
+   int fd = open(fifo_path, O_WRONLY);
+
+   if (fd == -1) {
+      perror("open");
+      exit(EXIT_FAILURE);
+   }
+
+   // 向 FIFO 文件写入数据
+   const char *message = "Hello, FIFO!";
+   if (write(fd, message, strlen(message) + 1) == -1) {
+      perror("write");
+      close(fd);
+      exit(EXIT_FAILURE);
+   }
+
+   // 关闭文件描述符
+   close(fd);
+
+   return 0;
+}
+```
+
+- **从管道读取数据的程序 (`reader.c`)**：
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <string.h>
+
+int main() {
+   const char *fifo_path = "myfifo";
+   char buffer[256];
+
+   // 打开 FIFO 文件的读端
+   int fd = open(fifo_path, O_RDONLY);
+
+   if (fd == -1) {
+      perror("open");
+      exit(EXIT_FAILURE);
+   }
+
+   // 从 FIFO 文件读取数据
+   if (read(fd, buffer, sizeof(buffer)) == -1) {
+      perror("read");
+      close(fd);
+      exit(EXIT_FAILURE);
+   }
+
+   // 输出读取到的数据
+   printf("Received message: %s\n", buffer);
+
+   // 关闭文件描述符
+   close(fd);
+
+   return 0;
+}
+```
+
+**编译和运行**：
+
+1. 编译 `writer.c`：
+
+    ```bash
+    gcc writer.c -o writer
+    ```
+
+2. 编译 `reader.c`：
+
+    ```bash
+    gcc reader.c -o reader
+    ```
+
+3. 分别运行 `writer` 和 `reader`：
+
+    - 打开一个终端窗口，运行 `./writer`。
+    - 在另一个终端窗口，运行 `./reader`。
+
+你会看到 `reader` 程序输出 "Received message: Hello, FIFO!"，这样就演示了使用有名管道进行进程间通信的简单例子。在这个例子中，`writer` 程序向 FIFO 文件写入数据，而 `reader` 程序从 FIFO 文件读取数据，实现了跨进程的通信。
 
 
+### (4) 共享内存通信
 
+
+共享内存是一种高效的进程间通信方式，它允许多个进程访问同一块内存区域。这种通信方式的优点是速度快，因为进程可以直接读写共享内存而无需进行复制。
+
+由于多个进程共享同一块内存区域，因此需要某种同步机制。互斥锁和信号量都可以。
+
+进程间需要共享的数据被放在一个成为IPC共享内存区域的地方，所有需要访问该共享区域的进程都要把该共享区域映射到本进程的地址空间中。
+
+以下是共享内存通信的一些关键 API：
+
+1. `shmget(key, size, shmflg)`：用于创建或访问共享内存标识符，返回共享内存区域的ID。
+2. `shmat(shmid, shmaddr, shmflg)` 用于将共享内存附加到调用进程的地址空间，返回共享内存区域的指针。这样进程就可以对共享区域进行访问。
+3. `shmdt(shmaddr)` 用于解除进程对共享区域的映射。
+4. `shmctl(shmid, cmd, buf)` 用于控制共享内存，例如删除共享内存或获取/设置共享内存的状态信息。
+
+#### shmget()
+
+**`shmget()`：** 用于活的共享内存区域的ID，即创建或访问一个共享内存标识符（shared memory identifier）。如果共享内存已存在，它返回现有的共享内存标识符；如果不存在，则创建一个新的。原型如下：
+
+```c
+#include <sys/ipc.h>
+#include <sys/shm.h>
+
+int shmget(key_t key, size_t size, int shmflg);
+```
+
+- `key`：用于标识共享内存的键值，通常取常量 `IPC_PRIVATE`
+- `size`：共享内存的大小（字节数），如果新建区域则需指定size，否则设为0即可。
+- `shmflg`：权限位，可以用八进制表示。
+
+调用成功则返回共享内存段标识符的ID，即 `shmid`。若出错则返回-1。
+
+#### shmat()
+
+**`shmat()`：** 用于将共享内存附加到调用进程的地址空间。原型如下：
+
+```c
+#include <sys/types.h>
+#include <sys/shm.h>
+
+void *shmat(int shmid, const void *shmaddr, int shmflg);
+```
+
+- `shmid`：由 `shmget()` 返回的共享内存标识符。
+- `shmaddr`：指定将共享内存映射到进程地址空间的位置，一般设为0即可，表示把该段共享内存映射到调用进程的地址空间。
+- `shmflg`：通常为 0，表示以读/写的方式共享内存，或者设置`SHM_RDONLY`，表示以只读的方式共享内存。
+
+#### shmdt()
+
+**`shmdt()`：**该函数用于撤销映射，即从进程的地址空间中分离共享内存。原型如下：
+
+```c
+#include <sys/types.h>
+#include <sys/shm.h>
+
+int shmdt(const void *shmaddr);
+```
+
+- `shmaddr`：指向共享内存区域的指针。
+
+函数成功则返回0，否则返回-1。
+
+下面给出使用实例：
+
+```c
+/********sharewrite.c********/
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <stdint.h>
+
+typedef struct {
+    char name[4];
+    int age;
+} people;
+
+int main() {
+    key_t key = ftok(".", 'a');  // 生成一个key
+    int shmid;
+
+    // 创建共享内存
+    shmid = shmget(key, sizeof(people), IPC_CREAT | 0666);
+    if (shmid == -1) {
+        perror("shmget");
+        exit(EXIT_FAILURE);
+    }
+
+    // 映射共享内存到进程地址空间
+    people *p = (people *)shmat(shmid, 0, 0);
+    if ((intptr_t)p == -1) {
+        perror("shmat");
+        exit(EXIT_FAILURE);
+    }
+
+    // 写入数据到共享内存
+    strncpy(p->name, "John", sizeof(p->name));
+    p->age = 30;
+
+    // 解除映射
+    if (shmdt(p) == -1) {
+        perror("shmdt");
+        exit(EXIT_FAILURE);
+    }
+
+    return 0;
+}
+```
+
+```c
+/********shareread.c********/
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <stdint.h>
+
+typedef struct {
+    char name[4];
+    int age;
+} people;
+
+int main() {
+    key_t key = ftok(".", 'a');  // 使用相同的key
+    int shmid;
+
+    // 访问共享内存
+    shmid = shmget(key, sizeof(people), 0666);
+    if (shmid == -1) {
+        perror("shmget");
+        exit(EXIT_FAILURE);
+    }
+
+    // 映射共享内存到进程地址空间
+    people *p = (people *)shmat(shmid, 0, 0);
+    if ((intptr_t)p == -1) {
+        perror("shmat");
+        exit(EXIT_FAILURE);
+    }
+
+    // 读取数据并打印
+    printf("Name: %s, Age: %d\n", p->name, p->age);
+
+    // 解除映射
+    if (shmdt(p) == -1) {
+        perror("shmdt");
+        exit(EXIT_FAILURE);
+    }
+
+    return 0;
+}
+```
+
+运行结果：
+
+```bash
+$ gcc sharewrite.c -o sharewrite
+$ gcc shareread.c -o shareread
+$ ./sharewrite
+$ ./shareread
+Name: John, Age: 30
+```
 
 
 ## 3. 共享内存通信
