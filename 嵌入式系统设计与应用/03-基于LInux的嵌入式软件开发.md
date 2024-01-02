@@ -37,7 +37,10 @@
     - [(1) BootLoader的操作模式](#1-bootloader的操作模式)
   - [5.2 常用的BootLoader](#52-常用的bootloader)
   - [5.3 BootLoader基本原理](#53-bootloader基本原理)
-  - [5.4 BootLoader移植实例一：U-Boot](#54-bootloader移植实例一u-boot)
+  - [5.4 BootLoader实例：U-Boot](#54-bootloader实例u-boot)
+    - [(1) U-Boot到Linux内核的参数传递](#1-u-boot到linux内核的参数传递)
+    - [(2) U-Boot 常用命令](#2-u-boot-常用命令)
+    - [(3) U-Boot 环境变量](#3-u-boot-环境变量)
 
 
 # 1. 嵌入式软件结构
@@ -353,5 +356,61 @@ BootLoader依赖于具体的嵌入式板级设备的配置。系统加电后，C
 
 ---
 
-## 5.4 BootLoader移植实例一：U-Boot
+## 5.4 BootLoader实例：U-Boot
+
+### (1) U-Boot到Linux内核的参数传递
+
+`U-Boot`和内核交互是单向的，两个程序不能同时运行，要实现参数传递只能通过把参数存放到一个固定内存位置，然后通过`RO`、`R1`、`R2`寄存器将参数传递：
+
+- `r0`一般设置为`0`
+- `r1` 一般设置为 `machine id` (在使用设备树时该参数没有被使用)
+- `r2` 一般设置为`ATAGS`或`DTB`的开始地址， `DTB`的开始地址可以从`images`的`ftd_addr` 成员变量获取
+
+```bash
+void (*kernel entry)(int zero, int arch, uint params)
+kernel_entry = (void(*)(int, int, uint))images->ep
+```
+
+### (2) U-Boot 常用命令
+
+Nand Flash 操作命令为 `nand`。它根据不同参数进行不同操作。
+
+> 切记Nand Flash写入数据之前一定要先擦除。
+
+举例：
+
+- `nand erase [clean] [off size]`
+  - 擦除Nand Flash
+  - clean表示在每个块的第一个扇区的OOB区写入清除标记
+  - off、size表示要擦除的开始偏移地址和长度
+- `nand read addr off size`
+  - 从Nand Flash偏移地址off处读出size个字节的数据
+  - 存放到开始地址为addr的内存中
+- `nand write addr off size`
+  - 把开始地址为addr的内存中的size个字节的数据
+  - 写到Nand Flash偏移地址off处
+- `nand write.yaffs addr off size`
+  - 烧写文件系统
+  - 把开始地址为addr的内存中的size个字节数据写到Nand Flash偏移地址off处
+
+`bootz`命令启动`zImage`镜像，`bootm`命令启动`uImage`镜像：
+
+- `bootz [addr [initrd[:size]] [fdt]]`
+- `bootm [addr [initrd[:size]] [fdt]]`
+
+`addr` 是 `Linux` 镜像文件在 `DRAM` 中的位置。
+
+initrd 是 initrd 文件在 `DRAM` 中的地址，如果不使用 `initrd` 的话使用 `-` 代替即可。
+
+`fdt` 就是设备数文件在 `DRAM` 中的地址。
+
+### (3) U-Boot 环境变量
+
+- bootargs：传递给Linux内核的命令行参数
+- bootcmd：自动启动时执行的几条命令
+- bootdelay：执行自动启动的等待秒数
+- baudrate：串口控制台的波特率
+- ethaddr：定义以太网接口的MAC地址
+- ipaddr：本地的IP地址
+- serverip：tftp服务器端的IP地址
 
