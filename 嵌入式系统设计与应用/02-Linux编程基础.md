@@ -2399,24 +2399,24 @@ SIGCHLD：
     ```c
     #include <signal.h>
     #include <stdio.h>
-
+    
     void handle_signal(int signo) {
         printf("Received signal: %d\n", signo);
     }
-
+    
     int main() {
         struct sigaction sa;
         sa.sa_handler = handle_signal;
         sa.sa_flags = 0;
-
+    
         // 注册信号处理函数
         sigaction(SIGINT, &sa, NULL);
-
+    
         // 进程的主循环
         while (1) {
             // 执行其他操作
         }
-
+    
         return 0;
     }
     ```
@@ -2427,11 +2427,11 @@ SIGCHLD：
     ```c
     #include <signal.h>
     #include <unistd.h>
-
+    
     int main() {
         // 向进程自身发送SIGTERM信号
         kill(getpid(), SIGTERM);
-
+    
         return 0;
     }
     ```
@@ -2441,14 +2441,14 @@ SIGCHLD：
 
     ```c
     #include <signal.h>
-
+    
     int main() {
         // 忽略SIGTERM信号
         signal(SIGTERM, SIG_IGN);
-
+    
         // 恢复SIGTERM信号的默认动作
         signal(SIGTERM, SIG_DFL);
-
+    
         return 0;
     }
     ```
