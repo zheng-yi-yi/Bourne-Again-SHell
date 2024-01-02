@@ -37,6 +37,7 @@
     - [(1) BootLoader的操作模式](#1-bootloader的操作模式)
   - [5.2 常用的BootLoader](#52-常用的bootloader)
   - [5.3 BootLoader基本原理](#53-bootloader基本原理)
+  - [5.4 BootLoader移植实例一：U-Boot](#54-bootloader移植实例一u-boot)
 
 
 # 1. 嵌入式软件结构
@@ -322,11 +323,35 @@ NFS 指的是在不同机器，不同操作系统之间通过网络共享文件�
 ## 5.3 BootLoader基本原理
 
 
-BootLoader依赖于CPU的体系结构，同时也依赖于具体的嵌入式板级设备的配置。
-
-系统加电后，CPU首先执行BootLoader程序。
+BootLoader依赖于具体的嵌入式板级设备的配置。系统加电后，CPU首先执行BootLoader程序。
 
 下面是同时装有 Boot Loader、内核的启动参数、内核映像和根文件系统映像的固态存储设备的典型空间分配结构图。
 
 ![image-20240102173724333](images/03-基于LInux的嵌入式软件开发/image-20240102173724333.png)
+
+从操作系统的角度来看，BootLoader的总目标就是正确地调用内核来执行。
+
+由于BootLoader依赖于CPU的体系结构，因此大多数BootLoader都是分为stage1和stage2两部分。
+
+依赖于CPU的体系结构的部分通常放在stage1，通常以汇编语言来实现。而stage2通常用C语言来实现。
+
+`Boot Loader` 的 `stage1` 通常包括以下步骤:
+
+1. 硬件设备初始化
+2. 为加载 `Boot Loader` 的 `stage2` 准备 `RAM` 空间
+3. 拷贝 `Boot Loader` 的 `stage2` 到 `RAM` 空间中
+4. 设置好堆栈
+5. 跳转到 `stage2` 的 `C` 入口点
+
+`Boot Loader` 的 `stage2` 通常包括以下步骤:
+
+1. 初始化本阶段要使用到的硬件设备
+2. 检测系统内存映射
+3. 将 `kermel` 映像和根文件系统映像从 `flash` 上读到 `RAM` 空间中
+4. 为内核设置启动参数
+5. 调用内核
+
+---
+
+## 5.4 BootLoader移植实例一：U-Boot
 
