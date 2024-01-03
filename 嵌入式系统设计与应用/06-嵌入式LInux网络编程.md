@@ -864,3 +864,72 @@ UDP编程的**客户端**一般步骤是:
 
 # 6. 习题
 
+下面，是利用套接字进行通信的部分程序段，请阅读代码后回答问题。
+
+## （1）第一题
+
+```C
+sockfd = socket(AF_INET,SOCK_STREAM,0);
+address.sin_family = AF_INET;
+address.sin_addr.s_addr = htonl(INADDR_ANY);
+address.sin_port = htons(9734);
+len = sizeof(address);
+```
+
+**这段代码是采用UDP还是TCP进行通信，你是怎么看出来的？INADDR_ANY表示什么含义?**
+
+答：
+
+这段代码采用TCP进行通信，因为在创建套接字时，选取的套接字类型是SOCK_STREAM，即流套接字，它们在AF_INET域中通过TCP/IP连接实现的。
+
+服务器端因为往往带有多个网络适配器。 INADDR_ANY转换过来就是0.0.0.0，泛指本机的意思，也就是表示本机的所有IP。因为服务器可能有多个网卡，而每个网卡也可能绑定多个IP地址，这样设置可以在所有的IP地址上进行监听，直到与某个客户建立了链接时才确下来到底用哪个IP地址。
+
+## （2）第二题
+
+```c
+result = connect(sockfd, (struct sockaddr *)&address, len);
+if(result == -1) {
+    perror("oops: client3");
+    exit(1);
+}
+msg = "hello";
+write(sockfd, msg, strlen(msg)+1);
+read(sockfd, msg, sizeof(msg));
+printf("server say %s\n", msg);
+close(sockfd);
+```
+
+**这段代码是应该运行在服务器还是客户端? 程序输出结果是什么?**
+
+答：
+
+这段代码应该运行在**客户端**，因为只有客户端才需要使用函数`connect( )`连接服务器。程序输出结果是: `server say hello`
+
+## （3） 第三题
+
+```c
+listen(server_sockfd, 5);
+while(1){
+    printf("server waiting\n");
+    client_len = sizeof(client_address);
+    client_sockfd = accept(server sockfd, (struct sockaddr *)&client_address, &client_len):
+	client_count++;
+	if(fork() == 0){
+    	memset(msg, 0, 256):
+		read(client_sockfd, msg, sizeof(msg));
+        printf("%d# client: %s\n", client_count, msg);
+        sleep(5);
+		write(client_sockfd, toupper(msg), sizeof(msg));
+        close(client_sockfd);
+		exit(0);
+	} esle {
+        close(client_sockfd);
+    }
+}
+```
+
+代码段中函数 fork( ) 的作用是什么?
+
+答：
+
+程序段三中函数 fork() 的作用是：可以并发服务多个客户端，提高服务器性能。每当服务器收到一个客户端的连接请求后，就调用函数fork()创建一个子进程来处理客户端的业务逻辑。
