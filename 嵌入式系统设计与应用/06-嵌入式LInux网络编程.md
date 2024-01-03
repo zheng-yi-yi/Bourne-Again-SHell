@@ -52,6 +52,8 @@
   - [2.3 Socket基础编程](#23-socket基础编程)
 - [3. TCP 通信编程](#3-tcp-通信编程)
   - [3.1 TCP 通信过程](#31-tcp-通信过程)
+    - [(1) 使用Socket()创建套接字](#1-使用socket创建套接字)
+    - [(2) 绑定本地地址](#2-绑定本地地址)
   - [3.2 TCP Server 程序设计](#32-tcp-server-程序设计)
   - [3.3 TCP Client 程序设计](#33-tcp-client-程序设计)
   - [3.3 TCP 程序测试过程](#33-tcp-程序测试过程)
@@ -194,8 +196,6 @@ TCP连接的建立采用三次握手的过程，包括以下步骤：
 
 - `<本地IP地址, 本地端口, 远端IP地址, 远端端口>`
 
-
-
 #### 关闭TCP连接
 
 TCP连接的关闭采用四次挥手的过程，包括以下步骤：
@@ -211,7 +211,7 @@ TCP连接的关闭采用四次挥手的过程，包括以下步骤：
 
 UDP（User Datagram Protocol）是一种简单的、无连接的传输协议，它与TCP相比，不提供可靠性和流控制机制，但具有较低的开销。以下是UDP协议的一些特点和相关信息：
 
-#### UDP特点：
+#### UDP特点
 
 1. **无连接性**：UDP是无连接的，不需要在数据传输前建立连接，也不需要在传输后关闭连接。
   
@@ -223,7 +223,7 @@ UDP（User Datagram Protocol）是一种简单的、无连接的传输协议，�
 
 5. **无拥塞控制**：UDP不提供流量控制，因此发送方会一直以恒定的速率发送数据，而不会因网络拥塞而进行调整。
 
-#### UDP报文格式：
+#### UDP报文格式
 
 UDP报文头部相对简单，包含以下字段：
 
@@ -237,7 +237,7 @@ UDP报文头部相对简单，包含以下字段：
 
 ![image-20240103180939536](images/06-嵌入式LInux网络编程/image-20240103180939536.png)
 
-#### 应用场景：
+#### 应用场景
 
 由于UDP的轻量级和低延迟特性，它在一些特定的应用场景中得到广泛应用，例如：
 
@@ -464,16 +464,10 @@ struct servent {
 };
 ```
 
----
-
-## 2.3 Socket基础编程
-
 
 ---
 
 # 3. TCP 通信编程
-
-## 3.1 TCP 通信过程
 
 ![image-20240103204621806](images/06-嵌入式LInux网络编程/image-20240103204621806.png)
 
@@ -483,39 +477,390 @@ struct servent {
 
 下面结合以上步骤来说明各个函数的用法。
 
-### (1) 使用Socket()创建套接字
+## 3.1 Socket()
+
+该函数返回一个类似文件描述符的句柄。
+
+```c
+int socket(int family, int type, int protocol)
+```
+
+`socket()` 函数是用于创建套接字的系统调用，通常在网络编程中使用。这个函数有三个参数，它们分别是 `family`、`type` 和 `protocol`。
+
+1. **family（协议族）：**
+   - AF_INET: IPv4 协议
+   - AF_INET6: IPv6 协议
+   - AF_UNIX 或 AF_LOCAL: 本地通信
+2. **type（套接字类型）：**
+   - SOCK_STREAM: 面向连接的流套接字，提供可靠的、基于连接的服务（如 TCP）。
+   - SOCK_DGRAM: 面向消息的数据报套接字，提供无连接的服务（如 UDP）。
+   - SOCK_RAW: 原始套接字，提供对网络协议的直接访问。
+3. **protocol（协议）：**
+   - 0: 一般用0表示根据套接字类型和协议族自动选择合适的协议。
+
+```c
+#include <sys/socket.h>
+
+int main() {
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd == -1) {
+        // 创建套接字失败
+        perror("socket");
+        return -1;
+    }
+
+    // 在这里可以进行后续的网络编程操作，如绑定地址、监听连接等
+
+    return 0;
+}
+```
+
+## 3.2 bind()
+
+bind函数将Socket与本机上的一个端口相关联，随后即可在该端口监听服务请求。
+
+```c
+int bind(int sockfd, struct sockaddr *sa, int addrlen)
+```
+
+`bind()` 函数用于将一个套接字绑定到一个本地地址（IP 地址和端口号）。它有三个参数：
+
+1. **sockfd（套接字描述符）：**
+   - 要绑定的套接字描述符，通常是通过 `socket()` 函数创建的。
+2. **sa（指向 sockaddr 结构体的指针）：**
+   - 包含地址信息的结构体指针。这个结构体的具体类型取决于套接字的地址族（family）。
+     - 对于 IPv4 地址族（AF_INET），使用 `struct sockaddr_in`。
+     - 对于 IPv6 地址族（AF_INET6），使用 `struct sockaddr_in6`。
+     - 对于本地通信地址族（AF_UNIX 或 AF_LOCAL），使用 `struct sockaddr_un`。
+3. **addrlen（地址结构体的长度）：**
+   - 提供给函数的地址结构体的长度，可以使用 `sizeof(struct sockaddr)`。
+
+比如：
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <arpa/inet.h>
+
+int main() {
+    // 创建套接字
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd == -1) {
+        perror("socket");
+        return -1;
+    }
+
+    // 准备地址结构体
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = INADDR_ANY; // 绑定到任意可用的本地地址
+    addr.sin_port = htons(8080);       // 绑定到端口 8080
+
+    // 绑定套接字到地址
+    if (bind(sockfd, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
+        perror("bind");
+        close(sockfd);
+        return -1;
+    }
+
+    // 在这里可以进行后续的网络编程操作，如监听连接、接收数据等
+
+    close(sockfd); // 使用完毕后关闭套接字
+
+    return 0;
+}
+```
 
 
+
+## 3.3 listen()
+
+使用listen()函数将套接字设置为诶监听模式，以等待连接请求。
+
+```c
+int listen(int sockfd, int backlog)
+```
+
+`listen()` 函数用于将套接字设置为监听模式，以便等待连接请求。它有两个参数：
+
+1. **sockfd（套接字描述符）：**
+   - 要设置为监听模式的套接字描述符，通常是通过 `socket()` 和 `bind()` 函数创建和配置的。
+
+2. **backlog（连接请求队列的最大长度）：**
+   - 定义了操作系统中连接请求的队列长度。如果队列已满，新的连接请求将被拒绝。通常，该值设定为一个适当的大小，表示系统中能够排队等待处理的连接请求的最大数目。
+
+以下是一个简单的例子，演示如何将套接字设置为监听模式：
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+int main() {
+    // 创建套接字
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd == -1) {
+        perror("socket");
+        return -1;
+    }
+
+    // ...（省略绑定地址的部分）
+
+    // 设置套接字为监听模式，允许最多 10 个等待连接的请求
+    if (listen(sockfd, 10) == -1) {
+        perror("listen");
+        close(sockfd);
+        return -1;
+    }
+
+    printf("Listening for incoming connections...\n");
+
+    // 在这里可以使用 accept() 函数接受连接请求
+
+    close(sockfd); // 不再监听时关闭套接字
+
+    return 0;
+}
+```
+
+## 3.4 accept()
+
+请求到来后，使用accept() 函数接收连接请求。
+
+```c
+int accept(int sockfd, struct sockaddr *addr, int addrlen)
+```
+
+`accept()` 函数用于接受连接请求，创建一个新的套接字用于与客户端进行通信。它有三个参数：
+
+1. **sockfd（监听套接字描述符）：**
+   - 被设置为监听模式的套接字描述符，通常是通过 `socket()`、`bind()` 和 `listen()` 函数创建和配置的。
+
+2. **addr（指向 sockaddr 结构体的指针）：**
+   - 用于存储连接建立时客户端的地址信息。这个参数通常是一个 `struct sockaddr` 类型的指针。可以为 `NULL`，表示不关心客户端的地址信息。
+
+3. **addrlen（地址结构体的长度）：**
+   - 提供给函数的地址结构体的长度。如果 `addr` 参数不为 `NULL`，则应该为 `sizeof(struct sockaddr)`。
+
+`accept()` 函数返回一个新的套接字描述符，用于与客户端进行通信。如果有错误发生，返回值为 -1。
+
+以下是一个简单的例子，演示如何使用 `accept()` 函数接受连接请求：
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+
+int main() {
+    // 创建监听套接字
+    int listen_sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (listen_sock == -1) {
+        perror("socket");
+        return -1;
+    }
+
+    // ...（省略绑定地址和设置监听的部分）
+
+    // 等待连接请求并接受连接
+    struct sockaddr_in client_addr;
+    socklen_t client_addrlen = sizeof(client_addr);
+    int client_sock = accept(listen_sock, (struct sockaddr*)&client_addr, &client_addrlen);
+    if (client_sock == -1) {
+        perror("accept");
+        close(listen_sock);
+        return -1;
+    }
+
+    // 在这里可以与客户端进行通信
+
+    // 关闭与客户端通信的套接字
+    close(client_sock);
+
+    // 关闭监听套接字
+    close(listen_sock);
+
+    return 0;
+}
+```
+
+accept函数默认为阻塞函数，调用该函数以后将一直阻塞，直到有连接请求。如果执行成功，则返回值是由内核自动生成的一个新的Socket。
+
+一般来说会有两个套接字描述符，一个用户侦听客户端的连接请求，一个用于与已连接的客户端进行数据通信。
+
+> 一般一个服务器只须生成一个侦听套接字且一直存在，这样在连接队列头部的连接请求就可以与这个套接字连接。执行了 `accept()`函数后，内核为每一个新连接的客户端都重新生成了一个与客户端连接的套接字，这个套接字在完成服务器和客户端的通信之后即可关闭，而用于侦听的套接字则需要在退出服务器时才关闭。
+
+## 3.5 connect() 
+
+客户端如果需要申请一个连接，则必须调用 connect() 函数，这个函数的任务就是建立与服务器的连接。
+
+```c
+int connect(int sockfd, struct sockaddr * serv_addr,int addrlen);
+```
+
+`connect()` 函数用于客户端向服务器发起连接请求，以建立网络连接。它有三个参数：
+
+1. **sockfd（套接字描述符）：**
+   - 客户端的套接字描述符，通常是通过 `socket()` 函数创建的。
+
+2. **serv_addr（指向 sockaddr 结构体的指针）：**
+   - 服务器的地址信息。这个参数通常是一个 `struct sockaddr` 类型的指针，但在实际使用时，通常会使用 `struct sockaddr_in` 或 `struct sockaddr_in6` 结构体，具体取决于服务器的地址族（IPv4 或 IPv6）。
+
+3. **addrlen（地址结构体的长度）：**
+   - 提供给函数的地址结构体的长度，可以使用 `sizeof(struct sockaddr)`。
+
+`connect()` 函数负责建立与服务器的连接。如果连接成功，返回值为0；如果连接失败，返回值为-1，并设置全局变量 `errno` 以指示具体的错误原因。
+
+以下是一个简单的例子，演示如何使用 `connect()` 函数连接到服务器：
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+
+int main() {
+    // 创建客户端套接字
+    int client_sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (client_sock == -1) {
+        perror("socket");
+        return -1;
+    }
+
+    // 准备服务器地址结构体
+    struct sockaddr_in server_addr;
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = inet_addr("127.0.0.1"); // 服务器的 IP 地址
+    server_addr.sin_port = htons(8080); // 服务器的端口号
+
+    // 发起连接请求
+    if (connect(client_sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
+        perror("connect");
+        close(client_sock);
+        return -1;
+    }
+
+    // 连接成功后，可以进行数据交换等操作
+
+    // 关闭客户端套接字
+    close(client_sock);
+
+    return 0;
+}
+```
+
+在实际使用中，你需要根据实际情况设置服务器的 IP 地址和端口号，并在连接成功后，通过套接字进行数据的发送和接收操作。
+
+## 3.6 send() / recv()
+
+一旦建立起TCP连接，得到一个Socket，就可以进行数据通信。
+
+由于Socket本质就是文件描述符，因此凡是基于文件描述符的IO函数几乎都可以用于数据通信。
+
+`send()` 和 `recv()`
+
+在 TCP 数据通信中，`send()` 和 `recv()` 是常用的函数，用于在已建立的连接上进行数据的发送和接收。
+
+```c
+ssize_t send(int sockfd, const void *buf, size_t len, int flags);
+ssize_t recv(int sockfd, void *buf, size_t len, int flags);
+```
+
+- **`send()` 函数：**用于将数据从指定的套接字发送到已连接的另一端。
+  - `sockfd` 是要发送数据的套接字描述符。
+  - `buf` 是包含要发送数据的缓冲区的指针。
+  - `len` 是要发送的数据的字节数。
+  - `flags` 是发送操作的标志，通常设置为 0。
+- **`recv()` 函数：**用于从已连接的套接字接收数据。
+  - `sockfd` 是要接收数据的套接字描述符。
+  - `buf` 是用于存储接收数据的缓冲区的指针。
+  - `len` 是接收缓冲区的大小，即可接收的最大字节数。
+  - `flags` 是接收操作的标志，通常设置为 0
+
+`sendto()` 和 `recvfrom()`
+
+对于 UDP 数据通信，`sendto()` 和 `recvfrom()` 则常用于在无连接的情况下进行数据的发送和接收。
+
+```c
+ssize_t sendto(int sockfd, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
+ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen);
+```
+
+- **`sendto()` 函数：**
+  - 用于在无连接的情况下将数据从指定的套接字发送到指定目的地。
+  - `sockfd` 是要发送数据的套接字描述符。
+  - `buf` 是包含要发送数据的缓冲区的指针。
+  - `len` 是要发送的数据的字节数。
+  - `flags` 是发送操作的标志，通常设置为 0。
+  - `dest_addr` 是目标地址的结构体指针，通常是 `struct sockaddr`。
+  - `addrlen` 是目标地址结构体的长度。
+- **`recvfrom()` 函数：**
+  - 用于在无连接的情况下从指定的套接字接收数据，并获取发送方的地址信息。
+  - `sockfd` 是要接收数据的套接字描述符。
+  - `buf` 是用于存储接收数据的缓冲区的指针。
+  - `len` 是接收缓冲区的大小，即可接收的最大字节数。
+  - `flags` 是接收操作的标志，通常设置为 0。
+  - `src_addr` 是发送方地址的结构体指针，通常是 `struct sockaddr`。
+  - `addrlen` 是发送方地址结构体的长度，函数调用后存储发送方地址结构体的实际长度。
+
+## 3.7 close()
+
+程序进行网络传输完毕后，就应该关闭这个套接字描述符所表示的连接。实现步骤很简单，调用 close() 函数即可。
 
 ---
-
-## 3.2 TCP Server 程序设计
-
----
-
-## 3.3 TCP Client 程序设计
-
----
-
-## 3.3 TCP 程序测试过程
-
-
----
-
 
 # 4. UDP 通信编程
 
-## 4.1 UDP 通信过程
+与TCP相反，UDP 不提供可靠性保证，但这也使得它具有较少的传输时延，因而 UDP 协议常常用在一些对速度要求较高的场合。
+
+![image-20240103215413107](images/06-嵌入式LInux网络编程/image-20240103215413107.png)
+
+UDP 通信的基本过程如下:
+
+在服务器端，服务器首先创建一个 UDP 数据报类型的套接字，然后服务器就调用 bind() 函数，给此UDP套接字绑定一个端口。由于不需要建立连接，因此服务器端就可以通过调用 recvfrom()函数在指定的端口上等待客户端发送来的 UDP 数据报。在客户端，同样要先通过 Socket() 函数创建一个数据报套接字，然后有操作系统为这个套接字分配端口号。此后客户端就可以使用 sendto() 函数向一个指定的地址发送一个UDP 数据报。服务器端接收到套接字后，从 recvfrom() 中返回，在对数据报进行处理之后，再用 sendto()函数将处理的结果返回客户端。
+
+UDP 中使用的函数基本和上节相同，这里就不专门介绍了。
+
+事实上，UDPServe 的实现与 TCPServer 的实现十分类似，除了没有 listen 和 accept 等步骤外，最大的不同就是 Socket()数的第二个参数为 SOCK_DGRAM，应该说这才是 UDPServer与TCPServer 本质上的区别，其他的都是为了配合这个参数。
 
 ---
 
-## 4.2 UDP Server 程序设计
+# 5. 小结
+
+TCP编程的**服务器**端一般步骤是：
+
+1. 创建一个套接字socket，用函数socket();
+2. 绑定IP地址、端口等信息到socket上，用函数bind();
+3. 将套接字设置为监听模式等待连接请求，开启监听，用函数listen();
+4. 阻塞等待接收客户端的连接请求，返回一个新的连接套接字，用函数accept();
+5. 接收发送数据，用函数send()和recv()，或者read0和write();
+6. 关闭连接socket;关闭监听socket;用函数close()
+
+TCP编程的**客户端**一般步骤是：
+
+1.  创建一个套接字socket，用函数socket();
+2. 绑定本地IP地址、端口等信息到socket上，用函数bind();
+3. 设置服务器的IP地址和端口等属性，连接服务器，用函数connect();
+4. 收发数据，用函数send()和recv()，或者read()和write();
+5. 关闭网络连接，用函数close()
 
 ---
 
-## 4.3 UDP Client 程序设计
+UDP编程的**服务器端**一般步骤是：
 
----
+1. 创建一个socket，用函数socket();
+2. 绑定本地IP地址、端口等信息到socket上，用函数bind();
+3. 循环接收数据，用函数recvfrom();
+4. 关闭网络连接，用函数close();
 
-## 4.3 UDP 程序测试过程
+UDP编程的**客户端**一般步骤是:
+
+1. 创建一个socket，用函数socket()。
+2. 设置对方的IP地址和端口等属性，使用connect()。
+3. 发送数据，用函数sendto()。
+4. 关闭网络连接，用函数close()。
+
+# 6. 习题
 
